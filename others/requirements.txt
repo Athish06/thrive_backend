@@ -1,0 +1,11 @@
+psycopg2-binary
+python-dotenv
+bcrypt
+fastapi
+uvicorn[standard]
+pydantic[email]
+PyJWT
+python-multipart
+passlib[bcrypt]
+supabase
+httpx
