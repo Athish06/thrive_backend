@@ -46,6 +46,11 @@ from ai_services import (
     create_activity_chat_session,
     generate_activity_chat_messages
 )
+from storage.supabase_storage import (
+    upload_file_to_supabase,
+    get_file_signed_url,
+    delete_file_from_supabase
+)
 # import psycopg2  # Commented out - using Supabase now
 from typing import Optional, List, Dict, Any, Literal
 from datetime import timedelta, date, datetime
@@ -53,7 +58,6 @@ import logging
 import os
 import shutil
 from uuid import uuid4
-from fastapi.staticfiles import StaticFiles
 from utils.date_utils import utc_now_iso
 from db import get_supabase_client
 import threading 
@@ -70,12 +74,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Ensure local files directory exists and mount it for static serving
-FILES_DIR = os.path.join(os.path.dirname(__file__), "files")
-os.makedirs(FILES_DIR, exist_ok=True)
-app.mount("/files", StaticFiles(directory=FILES_DIR), name="files")
-
 
 # ==================== PYDANTIC MODELS ====================
 
@@ -182,12 +180,8 @@ class StudentAssessmentUpdate(BaseModel):
     assessmentDetails: Optional[Dict[str, Any]] = None
 
 class DeleteFileRequest(BaseModel):
-    filePath: str
+    storage_path: str  # Supabase Storage path instead of local filePath
 
-class UploadToSupabaseRequest(BaseModel):
-    file_path: str
-    original_name: str
-    student_id: int
 
 class TherapistSettings(BaseModel):
     profile_section: Optional[Dict[str, Any]] = {}
@@ -696,80 +690,52 @@ async def update_user_account_settings(
 # Document upload, OCR processing, and file management
 
 @app.post("/api/upload-document")
-async def upload_document(file: UploadFile = File(...), process_ocr: bool = True):
+async def upload_document(
+    file: UploadFile = File(...),
+    learner_id: Optional[int] = None,
+    process_ocr: bool = True,
+    current_user: dict = Depends(get_current_user)
+):
     """
-    Upload PDF/DOC/DOCX files with optional OCR processing
-    - Stores files locally under backend/files directory
+    Upload files directly to Supabase Storage with OCR processing
+    - Stores files in Supabase Storage (learner-files bucket)
     - Supports automatic text extraction from uploaded documents
-    - Returns public URL path for frontend storage
+    - Returns Supabase Storage URL and OCR results
+    - NO local file storage - direct to cloud
     """
     try:
-        allowed_ext = {".pdf", ".doc", ".docx"}
-        _, ext = os.path.splitext(file.filename or "")
-        ext = ext.lower()
-        if ext not in allowed_ext:
-            raise HTTPException(status_code=400, detail="Only PDF, DOC, DOCX files are allowed")
-
-        unique_name = f"{uuid4().hex}{ext}"
-        dest_path = os.path.join(FILES_DIR, unique_name)
-
-        # Save the file
-        with open(dest_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        # Return a path that the frontend can store; served via /files mount
-        public_url = f"/files/{unique_name}"
+        result = await upload_file_to_supabase(
+            file=file,
+            learner_id=learner_id,
+            process_ocr=process_ocr
+        )
         
-        response_data = {
-            "filePath": public_url,
-            "fileName": file.filename,
-            "fileSize": file.size if hasattr(file, 'size') else None
+        # Return format compatible with frontend expectations
+        return {
+            "filePath": result["storage_path"],  # Storage path for later operations
+            "fileName": result["file_name"],
+            "fileSize": result["file_size"],
+            "fileUrl": result["file_url"],  # Public/signed URL
+            "ocrResult": result.get("ocr_result")
         }
-        
-        # Process OCR if requested
-        if process_ocr:
-            try:
-                logger.info(f"Starting OCR processing for file: {unique_name}")
-                ocr_result = await extract_text_from_file(dest_path)
-                response_data["ocrResult"] = ocr_result
-                logger.info("OCR processing completed successfully")
-            except Exception as ocr_error:
-                logger.error(f"OCR processing failed: {ocr_error}")
-                # Don't fail the entire upload if OCR fails
-                response_data["ocrResult"] = {
-                    "error": "OCR processing failed",
-                    "message": str(ocr_error),
-                    "extracted_text": None
-                }
-        
-        return response_data
         
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"File upload failed: {e}")
-        raise HTTPException(status_code=500, detail="File upload failed")
+        raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
 
 @app.delete("/api/delete-file")
-async def delete_file(request: DeleteFileRequest):
+async def delete_file_endpoint(request: DeleteFileRequest, current_user: dict = Depends(get_current_user)):
     """
-    Delete uploaded files from local storage
-    - Removes files from backend/files directory
-    - Used for cleanup when documents are no longer needed
+    Delete files from Supabase Storage
+    - Removes files from Supabase Storage bucket
+    - NO local file deletion - direct cloud operation
     """
     try:
-        file_path = request.filePath
-        if not file_path or not file_path.startswith('/files/'):
-            raise HTTPException(status_code=400, detail="Invalid file path")
+        success = await delete_file_from_supabase(request.storage_path)
         
-        # Extract filename from the file path
-        filename = file_path.replace('/files/', '')
-        full_path = os.path.join(FILES_DIR, filename)
-        
-        # Check if file exists and delete it
-        if os.path.exists(full_path):
-            os.remove(full_path)
-            logger.info(f"File deleted successfully: {filename}")
+        if success:
             return {"message": "File deleted successfully"}
         else:
             raise HTTPException(status_code=404, detail="File not found")
@@ -779,125 +745,6 @@ async def delete_file(request: DeleteFileRequest):
     except Exception as e:
         logger.error(f"File deletion failed: {e}")
         raise HTTPException(status_code=500, detail="File deletion failed")
-
-@app.post("/api/process-ocr")
-async def process_ocr(file_path: str):
-    """
-    Process OCR on previously uploaded files
-    - Extracts text content from existing files using AI services
-    - Used for delayed or re-processing of document content
-    """
-    try:
-        # Extract filename from the file path
-        if not file_path.startswith('/files/'):
-            raise HTTPException(status_code=400, detail="Invalid file path format")
-        
-        filename = file_path.replace('/files/', '')
-        full_path = os.path.join(FILES_DIR, filename)
-        
-        # Check if file exists
-        if not os.path.exists(full_path):
-            raise HTTPException(status_code=404, detail="File not found")
-        
-        # Process OCR
-        logger.info(f"Processing OCR for existing file: {filename}")
-        ocr_result = await extract_text_from_file(full_path)
-        logger.info("OCR processing completed successfully")
-        
-        return {
-            "filePath": file_path,
-            "ocrResult": ocr_result
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"OCR processing failed: {e}")
-        raise HTTPException(status_code=500, detail=f"OCR processing failed: {str(e)}")
-
-@app.post("/api/upload-to-supabase")
-async def upload_to_supabase(request: UploadToSupabaseRequest, current_user: dict = Depends(get_current_user)):
-    """
-    Upload a local file to Supabase bucket 'Files', store its public URL in files table with student_id, and delete the local file.
-    """
-    try:
-        from supabase import create_client
-        import mimetypes
-        supabase = get_supabase_client()
-        BUCKET_NAME = "Files"
-        file_path = request.file_path
-        original_name = request.original_name
-        
-        logger.info(f"Starting upload to Supabase for file: {original_name}")
-        
-        # Validate file path
-        if not file_path.startswith('/files/'):
-            raise HTTPException(status_code=400, detail="Invalid file path format")
-        filename = file_path.replace('/files/', '')
-        full_path = os.path.join(FILES_DIR, filename)
-        
-        logger.info(f"Looking for file at: {full_path}")
-        
-        if not os.path.exists(full_path):
-            raise HTTPException(status_code=404, detail="File not found")
-        
-        # Upload to Supabase bucket
-        logger.info(f"Uploading to Supabase bucket: {BUCKET_NAME}")
-        with open(full_path, "rb") as f:
-            file_bytes = f.read()
-        
-        content_type, _ = mimetypes.guess_type(original_name)
-        logger.info(f"Content type: {content_type}")
-        
-        upload_resp = supabase.storage.from_(BUCKET_NAME).upload(filename, file_bytes, {"content-type": content_type or "application/octet-stream"})
-        
-        # Check for upload errors
-        if hasattr(upload_resp, 'status_code') and upload_resp.status_code != 200:
-            logger.error(f"Supabase upload failed with status: {upload_resp.status_code}")
-            try:
-                error_data = upload_resp.json()
-                error_msg = error_data.get('error', {}).get('message', 'Unknown upload error')
-            except:
-                error_msg = f"Upload failed with status {upload_resp.status_code}"
-            raise HTTPException(status_code=500, detail=f"Supabase upload error: {error_msg}")
-        
-        # Get public URL
-        public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(filename)
-        logger.info(f"Public URL: {public_url}")
-        
-        # Insert into files table with student_id
-        file_record = {
-            "student_id": request.student_id,
-            "file_url": public_url,
-            "uploaded_at": utc_now_iso()
-        }
-        
-        logger.info(f"Inserting into files table: {file_record}")
-        insert_resp = supabase.table('files').insert(file_record).execute()
-        
-        # Check for database insert errors
-        if hasattr(insert_resp, 'status_code') and insert_resp.status_code != 200:
-            logger.error(f"Database insert failed with status: {insert_resp.status_code}")
-            try:
-                error_data = insert_resp.json()
-                error_msg = error_data.get('error', {}).get('message', 'Unknown database error')
-            except:
-                error_msg = f"Database insert failed with status {insert_resp.status_code}"
-            raise HTTPException(status_code=500, detail=f"Supabase DB error: {error_msg}")
-        
-        file_id = insert_resp.data[0]['id']
-        logger.info(f"File inserted with ID: {file_id}")
-        
-        # Delete local file
-        os.remove(full_path)
-        logger.info("Local file deleted successfully")
-        
-        return {"message": "File uploaded to Supabase and local file deleted", "file_url": public_url, "file_id": file_id}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Upload to Supabase failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Upload to Supabase failed: {str(e)}")
 
 
 

@@ -436,6 +436,28 @@ def enroll_student(student_data: Dict[str, Any]) -> Dict[str, Any]:
             raise Exception("Failed to create student - no data returned from database")
         
         student = students[0]
+        student_id = student['id']
+        
+        # If a file was uploaded, save it to the files table
+        if student_data.get('driveUrl'):
+            try:
+                # Get the file URL from storage path
+                # The driveUrl contains the storage_path, we need to get the public URL
+                file_url = student_data.get('driveUrl')
+                
+                # Insert file record into files table
+                file_response = client.table('files').insert({
+                    'student_id': student_id,
+                    'file_url': file_url,
+                    'uploaded_at': datetime.now().isoformat()
+                }).execute()
+                
+                handle_supabase_error(file_response)
+                logger.info(f"File record created for student {student_id}")
+                
+            except Exception as file_error:
+                # Log error but don't fail enrollment if file table insert fails
+                logger.error(f"Failed to insert file record for student {student_id}: {file_error}")
         
         # Transform the new student data using helper function
         transformed_student = _transform_student_data(student, include_therapist_name=False)
