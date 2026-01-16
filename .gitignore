@@ -1,46 +1,29 @@
 # Backend environment files
-backend/.env
-backend/.env.local
-backend/.env.development
-backend/.env.production
-
-# Backend backup files
-backend/**/*_backup.py
-backend/**/*backup*.py
-
-# Frontend dependencies
-project/node_modules/
-frontend/node_modules/
-
-# General Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Environment variables
 .env
 .env.local
 .env.development
 .env.production
 
-# Build outputs
+# Backend backup files
+**/*_backup.py
+**/*backup*.py
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
 dist/
 build/
-.next/
 
-# IDE and editor files
-.vscode/
-.idea/
-*.swp
-*.swo
+# Files directory (uploaded files)
+files/
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-gitbro
+# Logs
+*.log
+
+# Database
+*.db
+*.sqlite3

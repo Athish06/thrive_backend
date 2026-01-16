@@ -481,7 +481,7 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
                 profile_name = f"{profile['first_name']} {profile['last_name']}"
     except Exception as e:
         # If profile fetch fails, continue without name
-        print(f"Warning: Could not fetch profile for user {current_user['id']}: {e}")
+        logger.warning(f"Could not fetch profile for user {current_user['id']}: {e}")
     
     return UserResponse(
         id=current_user["id"],
@@ -1664,7 +1664,7 @@ async def get_session_notes_by_child(
             for row in result.data
             if row.get("therapist_notes")  # Only include sessions with notes
         ]
-        print(notes_data)
+        logger.debug(f"Notes data: {notes_data}")
         return notes_data
     except HTTPException:
         raise
@@ -2184,7 +2184,7 @@ async def shutdown_event():
 
 if __name__ == "__main__":
     import uvicorn
-    print("Starting ThrivePath API server...")
+    logger.info("Starting ThrivePath API server...")
     uvicorn.run(
         "app:app",  
         host="0.0.0.0", 
