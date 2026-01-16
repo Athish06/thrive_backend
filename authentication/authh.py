@@ -117,20 +117,29 @@ def authenticate_user_detailed(email: str, password: str) -> Tuple[Optional[Dict
 # ==================== JWT TOKEN MANAGEMENT ====================
 # Functions for creating, verifying, and validating JWT tokens
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None, token_type: str = "access") -> str:
     """
-    Create JWT access token for authenticated users
+    Create JWT access or refresh token for authenticated users
     - Encodes user data (ID, email, role) into secure token
     - Sets expiration time (default from environment config)
+    - Supports both access tokens (short-lived) and refresh tokens (long-lived)
     - Used for stateless authentication in API requests
+    
+    Args:
+        data: Dictionary containing user data to encode
+        expires_delta: Optional custom expiration time
+        token_type: 'access' for access tokens (default 30min), 'refresh' for refresh tokens (7 days)
     """
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        if token_type == "refresh":
+            expire = datetime.utcnow() + timedelta(days=7)  # Refresh tokens last 7 days
+        else:
+            expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "type": token_type})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 

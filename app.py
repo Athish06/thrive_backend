@@ -1,7 +1,8 @@
-from fastapi import FastAPI, HTTPException, Depends, UploadFile, File
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel, EmailStr
+import jwt
 from users.users import create_user
 from authentication.authh import authenticate_user_detailed, create_access_token, get_current_user, update_last_login
 from users.profiles import get_therapist_profile, get_parent_profile, update_therapist_profile, update_parent_profile
@@ -14,13 +15,15 @@ from students.students import (
     enroll_student,
     update_student_assessment as update_student_assessment_record
 )
-from notes.notes import get_notes_by_date_and_therapist, create_session_note, get_notes_with_dates_for_therapist, SessionNoteCreate, SessionNoteResponse
+from notes.notes import get_notes_by_date_and_therapist, create_session_note, get_notes_with_dates_for_therapist, SessionNoteCreate, SessionNoteResponse, SessionNoteUpdate, update_session_note, delete_session_note
+from notes.general_notes import create_general_note, get_notes_by_date as get_general_notes_by_date, update_general_note, delete_general_note
 from sessions.sessions import (
     create_session, get_sessions_by_therapist, get_todays_sessions_by_therapist, get_session_by_id, update_session, delete_session,
     add_activity_to_session, get_session_activities, get_available_child_goals, get_master_activities, get_assessment_tool_activities,
     remove_activity_from_session, assign_ai_activity_to_child, mark_activity_completed, update_session_activity, SessionCreate, SessionUpdate, SessionResponse,
     SessionActivityCreate, SessionActivityUpdate, SessionActivityResponse, ChildGoalResponse, ActivityResponse, SessionComplete
 )
+from sessions.sessions_with_details import get_sessions_with_details
 from sessions.session_status import (
     update_session_status, start_session, complete_session, cancel_session,
     get_sessions_needing_status_update, auto_update_session_statuses,
@@ -91,6 +94,7 @@ class UserLogin(BaseModel):
 
 class LoginResponse(BaseModel):
     access_token: str
+    refresh_token: str  # Added refresh token
     token_type: str
     user: UserResponse
 
@@ -346,6 +350,46 @@ async def test_supabase_client():
 # ==================== AUTHENTICATION & AUTHORIZATION ====================
 # User authentication, registration, and token management
 
+@app.post("/api/refresh-token")
+async def refresh_access_token(refresh_token: str = Body(..., embed=True)):
+    """
+    Refresh access token using refresh token
+    - Validates refresh token
+    - Generates new access token
+    - Returns new access token for continued authentication
+    """
+    try:
+        # Verify refresh token
+        payload = jwt.decode(refresh_token, os.getenv("JWT_SECRET_KEY"), algorithms=[os.getenv("JWT_ALGORITHM", "HS256")])
+        
+        # Check if it's actually a refresh token
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+        
+        user_id = payload.get("sub")
+        email = payload.get("email")
+        role = payload.get("role")
+        
+        if not user_id or not email:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+        
+        # Generate new access token
+        new_access_token = create_access_token(
+            data={"sub": user_id, "email": email, "role": role},
+            token_type="access"
+        )
+        
+        return {"access_token": new_access_token, "token_type": "bearer"}
+        
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Refresh token expired")
+    except jwt.JWTError as e:
+        logger.error(f"JWT Error in refresh token: {e}")
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+    except Exception as e:
+        logger.error(f"Error refreshing token: {e}")
+        raise HTTPException(status_code=500, detail="Token refresh failed")
+
 @app.post("/api/login", response_model=LoginResponse)
 async def login_user(user_credentials: UserLogin):
     """
@@ -383,17 +427,19 @@ async def login_user(user_credentials: UserLogin):
         # Update last login
         update_last_login(user["id"])
         
-        # Create access token
-        access_token = create_access_token(
-            data={
-                "sub": str(user["id"]),  # Convert to string for JWT
-                "email": user["email"], 
-                "role": user["role"]
-            }
-        )
+        # Create access token and refresh token
+        token_data = {
+            "sub": str(user["id"]),  # Convert to string for JWT
+            "email": user["email"], 
+            "role": user["role"]
+        }
+        
+        access_token = create_access_token(data=token_data, token_type="access")
+        refresh_token = create_access_token(data=token_data, token_type="refresh")
         
         return LoginResponse(
             access_token=access_token,
+            refresh_token=refresh_token,
             token_type="bearer",
             user=UserResponse(
                 id=user["id"],
@@ -426,7 +472,7 @@ async def register_user(user_data: UserRegistration):
             raise HTTPException(status_code=400, detail="Invalid role. Must be 'therapist' or 'parent'")
         
         # Create user in database with profile data
-        new_user = create_user(
+        new_user = await create_user(
             email=user_data.email,
             password=user_data.password,
             role=user_data.role,
@@ -478,7 +524,11 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
         elif current_user["role"] == "parent":
             profile = get_parent_profile(current_user["id"])
             if profile:
-                profile_name = f"{profile['first_name']} {profile['last_name']}"
+                # Parent table uses parent_first_name and parent_last_name
+                profile_name = f"{profile.get('parent_first_name', '')} {profile.get('parent_last_name', '')}".strip()
+                # Fallback to old field names if new ones don't exist
+                if not profile_name:
+                    profile_name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip()
     except Exception as e:
         # If profile fetch fails, continue without name
         logger.warning(f"Could not fetch profile for user {current_user['id']}: {e}")
@@ -1238,6 +1288,31 @@ async def get_sessions(limit: int = 50, offset: int = 0, current_user: dict = De
     except Exception as e:
         logger.error(f"Error fetching sessions: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch sessions")
+
+@app.get("/api/sessions/with-details")
+async def get_sessions_with_complete_details(
+    session_date: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get sessions with complete details including student names and activity information
+    - Optimized single-query endpoint for notes UI
+    - Joins sessions with children, child_goals, and activities tables
+    - Optional date filter for specific day's sessions
+    """
+    try:
+        if current_user["role"] != "therapist":
+            raise HTTPException(status_code=403, detail="Only therapists can access sessions")
+        
+        therapist_id = current_user['id']
+        sessions = await get_sessions_with_details(therapist_id, session_date)
+        return sessions
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching sessions with details: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch sessions with details")
+
 
 @app.get("/api/sessions/today", response_model=List[SessionResponse])
 async def get_todays_sessions(current_user: dict = Depends(get_current_user)):
@@ -2159,6 +2234,216 @@ async def startup_event():
         logger.error(f"Error during application startup: {e}")
         # Don't fail the entire app startup for notification system issues
         logger.warning("Continuing application startup despite notification system error")
+
+# ==================== SESSION NOTES API ENDPOINTS ====================
+# Session-specific notes for therapists
+
+@app.put("/api/notes/{note_id}")
+async def update_session_note_endpoint(
+    note_id: int,
+    note_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update an existing session note
+    - Therapist-only endpoint
+    - Can only update notes created by the current therapist
+    """
+    try:
+        if current_user["role"] != "therapist":
+            raise HTTPException(status_code=403, detail="Only therapists can update notes")
+        
+        therapist_id = current_user['id']
+        
+        # Create update object
+        update_data = SessionNoteUpdate(
+            note_title=note_data.get("note_title"),
+            note_content=note_data.get("note_content")
+        )
+        
+        # Update note
+        updated_note = await update_session_note(note_id, therapist_id, update_data)
+        
+        return {"success": True, "note": updated_note}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating session note: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/notes/{note_id}")
+async def delete_session_note_endpoint(
+    note_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Delete a session note
+    - Therapist-only endpoint
+    - Can only delete notes created by the current therapist
+    """
+    try:
+        if current_user["role"] != "therapist":
+            raise HTTPException(status_code=403, detail="Only therapists can delete notes")
+        
+        therapist_id = current_user['id']
+        
+        # Delete note
+        success = await delete_session_note(note_id, therapist_id)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Note not found or access denied")
+        
+        return {"success": True, "message": "Note deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting session note: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== GENERAL NOTES API ENDPOINTS ====================
+# Daily notes for therapists (not tied to specific sessions)
+
+@app.post("/api/general-notes")
+async def create_general_note_endpoint(
+    note_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Create a general note for a specific date
+    - Therapist-only endpoint
+    - Notes stored in notes table (not tied to sessions)
+    """
+    try:
+        if current_user["role"] != "therapist":
+            raise HTTPException(status_code=403, detail="Only therapists can create general notes")
+        
+        # Get therapist profile
+        therapist_profile = get_therapist_profile(current_user["id"])
+        if not therapist_profile:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        
+        therapist_id = therapist_profile["id"]
+        
+        # Create note
+        note = await create_general_note(
+            therapist_id=therapist_id,
+            date=note_data.get("date"),
+            note_title=note_data.get("note_title"),
+            note_content=note_data.get("note_content")
+        )
+        
+        if note:
+            return {"success": True, "note": note}
+        
+        raise HTTPException(status_code=500, detail="Failed to create note")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating general note: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/general-notes/{date}")
+async def get_general_notes_by_date_endpoint(
+    date: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get all general notes for a specific date
+    - Therapist-only endpoint
+    """
+    try:
+        if current_user["role"] != "therapist":
+            raise HTTPException(status_code=403, detail="Only therapists can view general notes")
+        
+        therapist_profile = get_therapist_profile(current_user["id"])
+        if not therapist_profile:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        
+        therapist_id = therapist_profile["id"]
+        
+        notes = await get_general_notes_by_date(therapist_id, date)
+        return {"success": True, "notes": notes}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching general notes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/general-notes/{note_id}")
+async def update_general_note_endpoint(
+    note_id: int,
+    note_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update a general note
+    - Therapist-only endpoint
+    - Can only update own notes
+    """
+    try:
+        if current_user["role"] != "therapist":
+            raise HTTPException(status_code=403, detail="Only therapists can update general notes")
+        
+        therapist_profile = get_therapist_profile(current_user["id"])
+        if not therapist_profile:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        
+        therapist_id = therapist_profile["id"]
+        
+        note = await update_general_note(
+            note_id=note_id,
+            therapist_id=therapist_id,
+            note_title=note_data.get("note_title"),
+            note_content=note_data.get("note_content")
+        )
+        
+        if note:
+            return {"success": True, "note": note}
+        
+        raise HTTPException(status_code=404, detail="Note not found or access denied")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating general note: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/general-notes/{note_id}")
+async def delete_general_note_endpoint(
+    note_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Delete a general note
+    - Therapist-only endpoint
+    - Can only delete own notes
+    """
+    try:
+        if current_user["role"] != "therapist":
+            raise HTTPException(status_code=403, detail="Only therapists can delete general notes")
+        
+        therapist_profile = get_therapist_profile(current_user["id"])
+        if not therapist_profile:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        
+        therapist_id = therapist_profile["id"]
+        
+        success = await delete_general_note(note_id, therapist_id)
+        
+        if success:
+            return {"success": True, "message": "Note deleted successfully"}
+        
+        raise HTTPException(status_code=404, detail="Note not found or access denied")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting general note: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.on_event("shutdown")
 async def shutdown_event():

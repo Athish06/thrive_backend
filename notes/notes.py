@@ -197,25 +197,96 @@ async def create_session_note(therapist_id: int, note_data: SessionNoteCreate) -
         logger.error(f"Error creating session note: {str(e)}")
         raise Exception(f"Database error: {str(e)}")
 
-# ==================== FUTURE ENHANCEMENT FUNCTIONS ====================
-# Placeholder for additional note management functions
+# ==================== NOTE UPDATE \u0026 DELETE FUNCTIONS ====================
+# Functions for updating and deleting session notes
 
-# TODO: Implement note update functionality
-# async def update_session_note(note_id: int, therapist_id: int, update_data: SessionNoteUpdate) -> SessionNoteResponse:
-#     """Update an existing session note"""
-#     pass
+class SessionNoteUpdate(BaseModel):
+    """
+    Data model for updating session notes
+    """
+    note_content: Optional[str] = None
+    note_title: Optional[str] = None
 
-# TODO: Implement note deletion functionality  
-# async def delete_session_note(note_id: int, therapist_id: int) -> bool:
-#     """Delete a session note"""
-#     pass
+async def update_session_note(note_id: int, therapist_id: int, update_data: SessionNoteUpdate) -> SessionNoteResponse:
+    """
+    Update an existing session note
+    
+    Args:
+        note_id: ID of the note to update
+        therapist_id: ID of the therapist (for authorization)
+        update_data: SessionNoteUpdate object with fields to update
+    
+    Returns:
+        SessionNoteResponse object with updated note data
+    """
+    try:
+        supabase = get_supabase_client()
+        
+        # Verify note belongs to therapist
+        verify_result = supabase.table('session_notes').select('notes_id').eq('notes_id', note_id).eq('therapist_id', therapist_id).execute()
+        
+        if not verify_result.data:
+            raise Exception("Note not found or access denied")
+        
+        # Build update data
+        update_dict = {'last_edited_at': datetime.now().isoformat()}
+        
+        if update_data.note_content is not None:
+            update_dict['note_content'] = update_data.note_content
+        if update_data.note_title is not None:
+            update_dict['note_title'] = update_data.note_title
+        
+        # Update the note
+        result = supabase.table('session_notes').update(update_dict).eq('notes_id', note_id).execute()
+        
+        if not result.data:
+            raise Exception("Failed to update note")
+        
+        note_data = result.data[0]
+        
+        updated_note = SessionNoteResponse(
+            notes_id=note_data['notes_id'],
+            therapist_id=note_data['therapist_id'],
+            session_date=note_data['session_date'],
+            note_content=note_data['note_content'],
+            note_title=note_data.get('note_title'),
+            session_time=note_data.get('session_time'),
+            created_at=note_data['created_at'],
+            last_edited_at=note_data['last_edited_at']
+        )
+        
+        logger.info(f"Updated session note {note_id} for therapist {therapist_id}")
+        return updated_note
+        
+    except Exception as e:
+        logger.error(f"Error updating session note: {str(e)}")
+        raise Exception(f"Database error: {str(e)}")
 
-# TODO: Implement note search functionality
-# async def search_notes_by_content(therapist_id: int, search_term: str) -> List[SessionNoteResponse]:
-#     """Search notes by content for a specific therapist"""
-#     pass
-
-# TODO: Implement bulk note operations
-# async def get_notes_by_date_range(therapist_id: int, start_date: date, end_date: date) -> List[SessionNoteResponse]:
-#     """Get notes within a date range"""
-#     pass
+async def delete_session_note(note_id: int, therapist_id: int) -> bool:
+    """
+    Delete a session note
+    
+    Args:
+        note_id: ID of the note to delete
+        therapist_id: ID of the therapist (for authorization)
+    
+    Returns:
+        True if deleted successfully, False otherwise
+    """
+    try:
+        supabase = get_supabase_client()
+        
+        # Delete note (will only delete if therapist_id matches)
+        result = supabase.table('session_notes').delete().eq('notes_id', note_id).eq('therapist_id', therapist_id).execute()
+        
+        success = len(result.data) > 0
+        if success:
+            logger.info(f"Deleted session note {note_id} for therapist {therapist_id}")
+        else:
+            logger.warning(f"Note {note_id} not found or access denied for therapist {therapist_id}")
+        
+        return success
+        
+    except Exception as e:
+        logger.error(f"Error deleting session note: {str(e)}")
+        raise Exception(f"Database error: {str(e)}")

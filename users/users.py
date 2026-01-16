@@ -46,34 +46,36 @@ def _prepare_therapist_profile_data(user_id: int, email: str, first_name: str, l
     """
     Prepare therapist profile data for database insertion
     - Creates therapist-specific profile structure
-    - Includes default values for therapist accounts
+    - Matches therapists table schema
     """
     return {
         'user_id': user_id,
         'first_name': first_name or "",
         'last_name': last_name or "",
-        'email': email,
-        'phone': phone,
-        'bio': '',  # Default empty bio
-        'is_active': True
+        'email': email
+        # profile_settings and account_settings are JSONB and nullable, so we don't need to set them
     }
 
 def _prepare_parent_profile_data(user_id: int, email: str, first_name: str, last_name: str, 
-                                phone: Optional[str], address: Optional[str], emergency_contact: Optional[str]) -> Dict[str, Any]:
+                                phone: Optional[str], address: Optional[str], emergency_contact: Optional[str],
+                                child_first_name: str = "Child", child_last_name: str = "Name", 
+                                child_dob: str = "2020-01-01", relation_to_child: str = "parent") -> Dict[str, Any]:
     """
     Prepare parent profile data for database insertion
     - Creates parent-specific profile structure
-    - Includes parent-specific fields like address and emergency contact
+    - Matches parents table schema with all required fields
     """
     return {
         'user_id': user_id,
-        'first_name': first_name or "",
-        'last_name': last_name or "",
+        'parent_first_name': first_name or "",
+        'parent_last_name': last_name or "",
+        'child_first_name': child_first_name,
+        'child_last_name': child_last_name,
+        'child_dob': child_dob,
         'email': email,
         'phone': phone,
-        'address': address,
-        'emergency_contact': emergency_contact,
-        'is_active': True
+        'relation_to_child': relation_to_child,
+        'address_line1': address
     }
 
 def _handle_user_creation_error(error: Exception, email: str) -> None:
@@ -147,7 +149,7 @@ async def _create_parent_profile(client, user_id: int, profile_data: Dict[str, A
         logger.error(f"Failed to create parent profile for user {user_id}: {e}")
         return None
 
-def create_user(email: str, password: str, role: str, first_name: str = None, last_name: str = None, 
+async def create_user(email: str, password: str, role: str, first_name: str = None, last_name: str = None, 
                 phone: str = None, address: str = None, emergency_contact: str = None) -> Dict[str, Any]:
     """
     Create a new user account with associated profile
@@ -185,7 +187,7 @@ def create_user(email: str, password: str, role: str, first_name: str = None, la
         
         # Create user account
         client = get_supabase_client()
-        user = _create_user_record(client, user_data)
+        user = await _create_user_record(client, user_data)
         user_id = user["id"]
         
         logger.info(f"Created user with ID: {user_id}, email: {email}, role: {role}")
@@ -194,10 +196,10 @@ def create_user(email: str, password: str, role: str, first_name: str = None, la
         profile = None
         if role == "therapist":
             profile_data = _prepare_therapist_profile_data(user_id, email, first_name, last_name, phone)
-            profile = _create_therapist_profile(client, user_id, profile_data)
+            profile = await _create_therapist_profile(client, user_id, profile_data)
         elif role == "parent":
             profile_data = _prepare_parent_profile_data(user_id, email, first_name, last_name, phone, address, emergency_contact)
-            profile = _create_parent_profile(client, user_id, profile_data)
+            profile = await _create_parent_profile(client, user_id, profile_data)
         
         # Add profile to user data if created successfully
         if profile:
