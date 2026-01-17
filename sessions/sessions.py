@@ -1076,8 +1076,8 @@ async def get_assessment_tool_activities() -> Dict[str, Any]:
         
         # Assessment tool parent activity IDs
         assessment_tools = {
-            'isaa': {'id': 9, 'name': 'ISAA (Indian Scale for Assessment of Autism)'},
-            'indt-adhd': {'id': 10, 'name': 'INDT-ADHD (Indian Scale for ADHD)'},
+            'isaa': {'id': 1, 'name': 'ISAA (Indian Scale for Assessment of Autism)'},
+            'indt-adhd': {'id': 2, 'name': 'INDT-ADHD (Indian Scale for ADHD)'},
             'clinical-snapshots': {'id': 11, 'name': 'Clinical Snapshots'}
         }
         

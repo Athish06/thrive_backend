@@ -361,9 +361,9 @@ async def _update_assessment_details_for_child(session_id: int) -> None:
         supabase = get_supabase_client()
         
         # Assessment tool activity IDs
-        ASSESSMENT_TOOL_IDS = {
-            9: 'isaa',
-            10: 'indt-adhd',
+        assessment_activity_ids = {
+            1: 'isaa',
+            2: 'indt-adhd',
             11: 'clinical-snapshots'
         }
         

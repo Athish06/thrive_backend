@@ -48,7 +48,7 @@ def get_therapist_settings(user_id: int) -> Optional[Dict[str, Any]]:
     try:
         client = get_supabase_client()
 
-        response = client.table('therapists').select('id, user_id, profile_settings, account_settings, updated_at').eq('user_id', user_id).execute()
+        response = client.table('therapists').select('therapists_id, user_id, profile_settings, account_settings, updated_at').eq('user_id', user_id).execute()
         handle_supabase_error(response)
 
         settings = format_supabase_response(response)
@@ -65,7 +65,7 @@ def get_therapist_settings(user_id: int) -> Optional[Dict[str, Any]]:
                 account_section = {}
 
             return {
-                'id': therapist_data.get('id'),
+                'therapists_id': therapist_data.get('therapists_id'),
                 'user_id': therapist_data.get('user_id'),
                 'profile_section': profile_section or {},
                 'account_section': account_section or {},
@@ -109,7 +109,7 @@ def update_therapist_profile_settings(user_id: int, settings_data: Dict[str, Any
             logger.info(f"Updated profile settings for therapist user {user_id}")
             therapist_data = settings[0]
             return {
-                'id': therapist_data.get('id'),
+                'therapists_id': therapist_data.get('therapists_id'),
                 'user_id': therapist_data.get('user_id'),
                 'profile_section': therapist_data.get('profile_settings') or {},
                 'account_section': therapist_data.get('account_settings') or {},
@@ -153,7 +153,7 @@ def update_therapist_account_settings(user_id: int, settings_data: Dict[str, Any
             logger.info(f"Updated account settings for therapist user {user_id}")
             therapist_data = settings[0]
             return {
-                'id': therapist_data.get('id'),
+                'therapists_id': therapist_data.get('therapists_id'),
                 'user_id': therapist_data.get('user_id'),
                 'profile_section': therapist_data.get('profile_settings') or {},
                 'account_section': therapist_data.get('account_settings') or {},

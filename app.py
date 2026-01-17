@@ -5,7 +5,7 @@ from pydantic import BaseModel, EmailStr
 import jwt
 from users.users import create_user
 from authentication.authh import authenticate_user_detailed, create_access_token, get_current_user, update_last_login
-from users.profiles import get_therapist_profile, get_parent_profile, update_therapist_profile, update_parent_profile
+from users.profiles import get_therapist_profile, get_parent_profile, update_therapist_profile, update_parent_profile, get_therapist_id_from_user
 from users.settings import get_therapist_settings, update_therapist_profile_settings, update_therapist_account_settings, get_therapist_profile_settings, get_therapist_account_settings
 from students.students import (
     get_all_students,
@@ -65,11 +65,25 @@ import threading
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
 app = FastAPI(title="ThrivePath API", version="1.0.0")
+
+# Get allowed origins from env
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+origins = [origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()]
+
+# Fallback to avoid error if env is missing, but log warning
+if not origins:
+    logger.warning("ALLOWED_ORIGINS not set or empty. Defaulting to empty list (Strict Mode).")
+    origins = []
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # React dev server
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -85,6 +99,7 @@ class UserResponse(BaseModel):
     is_verified: bool
     created_at: str
     name: Optional[str] = None  # Added to include full name from profile
+    therapists_id: Optional[int] = None  # therapists table primary key for therapist operations
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -421,6 +436,24 @@ async def login_user(user_credentials: UserLogin):
         # Update last login
         update_last_login(user["id"])
         
+        # Get profile name and therapists_id for the user
+        profile_name = None
+        therapists_id = None
+        try:
+            if user["role"] == "therapist":
+                profile = get_therapist_profile(user["id"])
+                if profile:
+                    profile_name = f"{profile['first_name']} {profile['last_name']}"
+                    therapists_id = profile.get('therapists_id')
+            elif user["role"] == "parent":
+                profile = get_parent_profile(user["id"])
+                if profile:
+                    profile_name = f"{profile.get('parent_first_name', '')} {profile.get('parent_last_name', '')}".strip()
+                    if not profile_name:
+                        profile_name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip()
+        except Exception as e:
+            logger.warning(f"Could not fetch profile name for user {user['id']}: {e}")
+        
         # Create access token and refresh token
         token_data = {
             "sub": str(user["id"]),  # Convert to string for JWT
@@ -441,7 +474,9 @@ async def login_user(user_credentials: UserLogin):
                 role=user["role"],
                 is_active=user["is_active"],
                 is_verified=user["is_verified"],
-                created_at=str(user.get("created_at", ""))
+                created_at=str(user.get("created_at", "")),
+                name=profile_name or user["email"],
+                therapists_id=therapists_id  # Include therapists_id for therapist users
             )
         )
         
@@ -506,15 +541,18 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
     """
     Get current authenticated user information
     - Returns user data with profile name if available
+    - Returns therapists_id for therapist users
     - Used for user context and navigation personalization
     """
-    # Get profile data to include name
+    # Get profile data to include name and therapists_id
     profile_name = None
+    therapists_id = None
     try:
         if current_user["role"] == "therapist":
             profile = get_therapist_profile(current_user["id"])
             if profile:
                 profile_name = f"{profile['first_name']} {profile['last_name']}"
+                therapists_id = profile.get('therapists_id')
         elif current_user["role"] == "parent":
             profile = get_parent_profile(current_user["id"])
             if profile:
@@ -534,7 +572,8 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
         is_active=current_user["is_active"],
         is_verified=current_user["is_verified"],
         created_at=str(current_user.get("created_at", "")),
-        name=profile_name or current_user["email"]  # Fallback to email if no profile name
+        name=profile_name or current_user["email"],
+        therapists_id=therapists_id  # Include therapists_id for therapist users
     )
 
 @app.get("/api/test-auth")
@@ -811,7 +850,12 @@ async def get_my_students_route(current_user: dict = Depends(get_current_user)):
                 detail="Access denied. Only therapists can view assigned students."
             )
         
-        students = get_students_by_therapist(current_user["id"])
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user["id"])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        
+        students = get_students_by_therapist(therapists_id)
         return [StudentResponse(**student) for student in students]
         
     except HTTPException:
@@ -835,7 +879,12 @@ async def get_temp_students_route(current_user: dict = Depends(get_current_user)
                 detail="Access denied. Only therapists can view assigned students."
             )
         
-        students = get_temp_students_by_therapist(current_user["id"])
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user["id"])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        
+        students = get_temp_students_by_therapist(therapists_id)
         return [StudentResponse(**student) for student in students]
         
     except HTTPException:
@@ -980,9 +1029,14 @@ async def update_student_assessment_route(
                 detail="Access denied. Only therapists can update assessments."
             )
 
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user["id"])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+
         updated_student = update_student_assessment_record(
             student_id,
-            current_user["id"],
+            therapists_id,
             assessment_update.assessmentDetails
         )
 
@@ -1065,7 +1119,11 @@ async def get_notes_by_date(session_date: date, current_user: dict = Depends(get
     - Used for daily note review and session documentation
     """
     try:
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         notes = await get_notes_by_date_and_therapist(therapist_id, session_date)
         return notes
     except Exception as e:
@@ -1080,7 +1138,11 @@ async def create_note(note_data: SessionNoteCreate, current_user: dict = Depends
     - Linked to specific dates and students
     """
     try:
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         note = await create_session_note(therapist_id, note_data)
         return note
     except Exception as e:
@@ -1095,7 +1157,11 @@ async def get_notes_dates(current_user: dict = Depends(get_current_user)):
     - Enables quick navigation to days with existing documentation
     """
     try:
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         dates = await get_notes_with_dates_for_therapist(therapist_id)
         # Convert dates to strings for JSON serialization
         return [d.isoformat() for d in dates]
@@ -1114,7 +1180,11 @@ async def create_session_endpoint(session_data: SessionCreate, current_user: dic
     - Includes time slots, duration, and session type specification
     """
     try:
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         session = await create_session(therapist_id, session_data)
         return session
     except Exception as e:
@@ -1129,7 +1199,11 @@ async def get_sessions(limit: int = 50, offset: int = 0, current_user: dict = De
     - Supports pagination for large session datasets
     """
     try:
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         sessions = await get_sessions_by_therapist(therapist_id, limit, offset)
         return sessions
     except Exception as e:
@@ -1151,7 +1225,11 @@ async def get_sessions_with_complete_details(
         if current_user["role"] != "therapist":
             raise HTTPException(status_code=403, detail="Only therapists can access sessions")
         
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         sessions = await get_sessions_with_details(therapist_id, session_date)
         return sessions
     except HTTPException:
@@ -1169,7 +1247,11 @@ async def get_todays_sessions(current_user: dict = Depends(get_current_user)):
     - Used for dashboard "Today's Sessions" displays
     """
     try:
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         sessions = await get_todays_sessions_by_therapist(therapist_id)
         return sessions
     except Exception as e:
@@ -1184,7 +1266,11 @@ async def get_session(session_id: int, current_user: dict = Depends(get_current_
     - Restricted to sessions owned by current therapist
     """
     try:
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         session = await get_session_by_id(session_id, therapist_id)
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
@@ -1203,7 +1289,11 @@ async def update_session_endpoint(session_id: int, session_data: SessionUpdate, 
     - Restricted to sessions owned by current therapist
     """
     try:
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         session = await update_session(session_id, therapist_id, session_data)
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
@@ -1220,7 +1310,11 @@ async def update_notification_sent_endpoint(session_id: int, current_user: dict 
     Update the sent_notification flag for a session to true.
     """
     try:
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         supabase = get_supabase_client()
         
         # Verify therapist has access to the session
@@ -1250,7 +1344,11 @@ async def delete_session_endpoint(session_id: int, current_user: dict = Depends(
     - Restricted to sessions owned by current therapist
     """
     try:
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         success = await delete_session(session_id, therapist_id)
         if not success:
             raise HTTPException(status_code=404, detail="Session not found")
@@ -1272,7 +1370,11 @@ async def add_activity_to_session_endpoint(session_id: int, activity_data: Sessi
     - Links activities from master library to individual sessions
     """
     try:
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         activity = await add_activity_to_session(session_id, therapist_id, activity_data)
         return activity
     except Exception as e:
@@ -1287,7 +1389,11 @@ async def get_session_activities_endpoint(session_id: int, current_user: dict = 
     - Used for session planning and execution
     """
     try:
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         activities = await get_session_activities(session_id, therapist_id)
         return activities
     except Exception as e:
@@ -1446,10 +1552,15 @@ async def assign_activity_endpoint(
                 detail="Access denied. Only therapists can assign activities."
             )
 
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user["id"])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+
         result = await assign_ai_activity_to_child(
             request.activity,
             request.child_id,
-            current_user["id"]
+            therapists_id
         )
         return result
     except HTTPException:
@@ -1602,7 +1713,11 @@ async def remove_activity_from_session_endpoint(session_id: int, activity_id: in
     - Used for session plan modifications
     """
     try:
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         success = await remove_activity_from_session(activity_id, session_id, therapist_id)
         if not success:
             raise HTTPException(status_code=404, detail="Activity not found in session")
@@ -1628,7 +1743,11 @@ async def update_session_activity_endpoint(
     - Used during active session to track completion
     """
     try:
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         updated_activity = await update_session_activity(activity_id, session_id, therapist_id, activity_update)
         return updated_activity
     except HTTPException:
@@ -1681,7 +1800,11 @@ async def update_session_status_endpoint(session_id: int, status_update: Session
     - Logs all status changes
     """
     try:
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         result = await update_session_status(session_id, status_update.new_status, therapist_id)
         if not result:
             raise HTTPException(status_code=404, detail="Session not found or invalid status transition")
@@ -1700,8 +1823,12 @@ async def start_session_endpoint(session_id: int, current_user: dict = Depends(g
     - Updates status from 'scheduled' to 'ongoing'
     """
     try:
-        therapist_id = current_user['id']
-        validation = await check_session_ready_for_start(session_id, therapist_id)
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        
+        validation = await check_session_ready_for_start(session_id, therapists_id)
 
         if validation.get('exists') is False:
             raise HTTPException(status_code=404, detail="Session not found")
@@ -1717,7 +1844,7 @@ async def start_session_endpoint(session_id: int, current_user: dict = Depends(g
                 }
             )
 
-        result = await start_session(session_id, therapist_id)
+        result = await start_session(session_id, therapists_id)
         if not result:
             raise HTTPException(status_code=404, detail="Session not found or cannot be started")
         return result
@@ -1744,10 +1871,14 @@ async def cascade_reschedule_endpoint(
     """
 
     try:
-        therapist_id = current_user["id"]
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user["id"])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        
         result = await cascade_reschedule_sessions(
             session_id=session_id,
-            therapist_id=therapist_id,
+            therapist_id=therapists_id,
             include_weekends=payload.include_weekends,
         )
         session_items = [RescheduledSessionItem(**item) for item in result.get("sessions", [])]
@@ -1777,11 +1908,17 @@ async def complete_session_endpoint(session_data: SessionComplete, session_id: i
     - Accepts therapist notes to be saved with the session
     """
     try:
-        therapist_id = current_user['id']
-        result = await complete_session(session_id, therapist_id, session_data.therapist_notes)
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        
+        result = await complete_session(session_id, therapists_id, session_data.therapist_notes)
         if not result:
             raise HTTPException(status_code=404, detail="Session not found or cannot be completed")
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error completing session {session_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to complete session")
@@ -1794,11 +1931,17 @@ async def cancel_session_endpoint(session_id: int, current_user: dict = Depends(
     - Updates status to 'cancelled'
     """
     try:
-        therapist_id = current_user['id']
-        result = await cancel_session(session_id, therapist_id)
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        
+        result = await cancel_session(session_id, therapists_id)
         if not result:
             raise HTTPException(status_code=404, detail="Session not found or cannot be cancelled")
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error cancelling session {session_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to cancel session")
@@ -1863,25 +2006,30 @@ async def check_sessions_on_login_endpoint(current_user: dict = Depends(get_curr
         Dictionary with session status updates and immediate notifications
     """
     try:
-        # Get therapist_id from current user - using 'id' field from user object
-        therapist_id = current_user.get('id')
-        if not therapist_id:
+        # Get therapists_id from user_id
+        user_id = current_user.get('id')
+        if not user_id:
             logger.error(f"No user ID found in current_user: {current_user}")
             raise HTTPException(status_code=400, detail="Invalid user information")
         
         # Verify user is a therapist
         user_role = current_user.get('role')
         if user_role != 'therapist':
-            logger.warning(f"Non-therapist user {therapist_id} attempted to check sessions")
+            logger.warning(f"Non-therapist user {user_id} attempted to check sessions")
             raise HTTPException(status_code=403, detail="Access denied: Only therapists can check sessions")
         
-        logger.info(f"Checking sessions on login for therapist {therapist_id}")
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(user_id)
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        
+        logger.info(f"Checking sessions on login for therapist {therapists_id}")
         
         # Check sessions and get immediate notifications
-        session_check_result = await check_sessions_on_login(therapist_id)
+        session_check_result = await check_sessions_on_login(therapists_id)
         
         # Schedule notifications for remaining sessions
-        scheduling_result = await schedule_session_notifications_for_day(therapist_id)
+        scheduling_result = await schedule_session_notifications_for_day(therapists_id)
         
         return {
             "session_check": session_check_result,
@@ -2100,7 +2248,11 @@ async def update_session_note_endpoint(
         if current_user["role"] != "therapist":
             raise HTTPException(status_code=403, detail="Only therapists can update notes")
         
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         
         # Create update object
         update_data = SessionNoteUpdate(
@@ -2133,7 +2285,11 @@ async def delete_session_note_endpoint(
         if current_user["role"] != "therapist":
             raise HTTPException(status_code=403, detail="Only therapists can delete notes")
         
-        therapist_id = current_user['id']
+        # Get therapists_id from user_id
+        therapists_id = get_therapist_id_from_user(current_user['id'])
+        if not therapists_id:
+            raise HTTPException(status_code=404, detail="Therapist profile not found")
+        therapist_id = therapists_id
         
         # Delete note
         success = await delete_session_note(note_id, therapist_id)

@@ -20,7 +20,7 @@ async def create_general_note_endpoint(
         if not therapist_profile:
             raise HTTPException(status_code=404, detail="Therapist profile not found")
         
-        therapist_id = therapist_profile["id"]
+        therapist_id = therapist_profile["therapists_id"]
         
         # Create note
         note = await create_general_note(
@@ -58,7 +58,7 @@ async def get_general_notes_by_date_endpoint(
         if not therapist_profile:
             raise HTTPException(status_code=404, detail="Therapist profile not found")
         
-        therapist_id = therapist_profile["id"]
+        therapist_id = therapist_profile["therapists_id"]
         
         notes = await get_general_notes_by_date(therapist_id, date)
         return {"success": True, "notes": notes}
@@ -88,7 +88,7 @@ async def update_general_note_endpoint(
         if not therapist_profile:
             raise HTTPException(status_code=404, detail="Therapist profile not found")
         
-        therapist_id = therapist_profile["id"]
+        therapist_id = therapist_profile["therapists_id"]
         
         note = await update_general_note(
             note_id=note_id,
@@ -126,7 +126,7 @@ async def delete_general_note_endpoint(
         if not therapist_profile:
             raise HTTPException(status_code=404, detail="Therapist profile not found")
         
-        therapist_id = therapist_profile["id"]
+        therapist_id = therapist_profile["therapists_id"]
         
         success = await delete_general_note(note_id, therapist_id)
         

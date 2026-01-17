@@ -188,7 +188,7 @@ def _get_student_base_query() -> str:
         drive_url,
         prior_diagnosis,
         therapists!primary_therapist_id (
-            id,
+            therapists_id,
             first_name,
             last_name,
             email

@@ -76,6 +76,27 @@ def _get_profile_by_user_id(table_name: str, user_id: int) -> Optional[Dict[str,
         _handle_profile_error(f"getting {table_name}", user_id, e)
         return None
 
+
+def get_therapist_id_from_user(user_id: int) -> Optional[int]:
+    """
+    Get therapists_id from user_id
+    
+    Args:
+        user_id: The user ID from authentication to look up
+    
+    Returns:
+        The therapists_id (primary key) for this user, or None if not found
+    
+    Usage:
+        - Called after authentication to get the therapists_id
+        - therapists_id is used for all therapist-related operations
+        - user_id is only used for authentication
+    """
+    profile = _get_profile_by_user_id('therapists', user_id)
+    if profile:
+        return profile.get('therapists_id')
+    return None
+
 def _update_profile_by_user_id(table_name: str, user_id: int, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
     Generic function to update profile by user_id in any table

@@ -456,7 +456,13 @@ async def cascade_reschedule_sessions(
 ) -> Dict[str, Any]:
     """
     Shift the selected session and all upcoming scheduled sessions by one day.
-
+    
+    The cascading logic:
+    1. Find the target session that needs rescheduling
+    2. Get all sessions for this child from target date onwards (sorted chronologically)
+    3. Push each session forward by at least one day, ensuring no conflicts
+    4. Each subsequent session must be on or after the previous session's new date
+    
     Performs working hours, personal time, and overlap validation for each session.
     """
 
@@ -472,12 +478,15 @@ async def cascade_reschedule_sessions(
     if not child_id:
         raise ValueError("Session is missing child information for reschedule.")
 
-    fetch_start_date = min(target_date, date.today())
-    upcoming = _fetch_child_sessions(therapist_id, child_id, fetch_start_date)
+    # Fetch all scheduled sessions for this child from target date onwards
+    # This ensures we only cascade forward, not touch past sessions
+    upcoming = _fetch_child_sessions(therapist_id, child_id, target_date)
     if not upcoming:
         raise ValueError("No upcoming scheduled sessions found to reschedule.")
 
-    upcoming_sorted = sorted(
+    # Sort sessions strictly chronologically by date, then time, then ID
+    # This is critical for proper cascading - we process earliest sessions first
+    sessions_to_reschedule = sorted(
         upcoming,
         key=lambda row: (
             row.get("session_date") or "",
@@ -486,27 +495,35 @@ async def cascade_reschedule_sessions(
         ),
     )
 
-    sessions_to_reschedule: List[Dict[str, Any]] = []
-    for row in upcoming_sorted:
-        if row.get("id") == session_id:
-            sessions_to_reschedule.insert(0, row)
-        else:
-            sessions_to_reschedule.append(row)
+    # Filter to only include the target session and sessions on or after its date
+    # (The query already filters by date, but this ensures robustness)
+    sessions_to_reschedule = [
+        s for s in sessions_to_reschedule
+        if parse_date_string(s.get("session_date")) and 
+           parse_date_string(s.get("session_date")) >= target_date
+    ]
+
+    if not sessions_to_reschedule:
+        raise ValueError("No sessions found to reschedule from the target date.")
 
     settings = get_therapist_settings(therapist_id)
     working_hours_map = _get_working_hours_map(settings or {})
     free_hours = _get_free_hours(settings or {})
 
+    # Build occupancy map excluding all sessions we're about to reschedule
     session_ids = [row.get("id") for row in sessions_to_reschedule if row.get("id")]
     occupancy = _build_therapist_occupancy(
         therapist_id,
         exclude_session_ids=session_ids,
-        start_date=min(fetch_start_date, date.today()),
+        start_date=target_date,
     )
 
     proposed_updates: List[Dict[str, Any]] = []
-    last_assigned_date: Optional[date] = None
     today_value = date.today()
+    
+    # Track the minimum date for next session (starts from target date)
+    # This ensures each session is pushed forward and chains properly
+    min_next_date = max(target_date, today_value)
 
     for index, session_row in enumerate(sessions_to_reschedule):
         session_start = _parse_time_value(session_row.get("start_time"))
@@ -528,24 +545,56 @@ async def cascade_reschedule_sessions(
         if not original_date:
             raise ValueError("Unable to parse session date for an upcoming session.")
 
-        baseline = max(original_date, today_value)
-        if last_assigned_date and last_assigned_date > baseline:
-            baseline = last_assigned_date
+        # Smart gap detection: If this session's original date is AFTER the previous 
+        # session's new date (by at least 1 day), there's no conflict - stop cascading!
+        # This prevents unnecessarily moving sessions that have natural gaps.
+        if index > 0 and original_date > min_next_date:
+            # Gap detected! This session doesn't conflict with the previous one.
+            # We can check if there would be a time conflict on the same day
+            has_time_conflict = _has_time_conflict(occupancy, original_date, session_start, session_end)
+            if not has_time_conflict:
+                # No conflict at all - stop cascading here
+                logger.info(
+                    f"Gap detected: session on {original_date} does not conflict with "
+                    f"previous session's new date {min_next_date}. Stopping cascade."
+                )
+                break
 
-        allow_same_day = index != 0
+        # For cascading, we must push forward from the minimum next date
+        # This ensures proper chaining: each session goes to at least the day after previous
+        baseline = max(original_date, min_next_date, today_value)
 
-        new_date = _find_next_available_date(
-            start_from=baseline,
-            include_weekends=include_weekends,
-            allow_same_day=allow_same_day,
-            session_start=session_start,
-            session_end=session_end,
-            working_hours_map=working_hours_map,
-            free_hours=free_hours,
-            occupancy=occupancy,
-        )
+        # First session (index=0) must always move forward at least one day
+        # Subsequent sessions can stay on the same day as baseline if there's a free slot
+        # (but they will still be pushed because baseline is >= previous session's new date)
+        if index == 0:
+            # First session: must move forward at least one day from its original date
+            new_date = _find_next_available_date(
+                start_from=baseline,
+                include_weekends=include_weekends,
+                allow_same_day=False,  # Must move forward
+                session_start=session_start,
+                session_end=session_end,
+                working_hours_map=working_hours_map,
+                free_hours=free_hours,
+                occupancy=occupancy,
+            )
+        else:
+            # Subsequent sessions: try to fit on baseline date first, then move forward
+            new_date = _find_next_available_date(
+                start_from=baseline,
+                include_weekends=include_weekends,
+                allow_same_day=True,  # Can stay on same day if slot available
+                session_start=session_start,
+                session_end=session_end,
+                working_hours_map=working_hours_map,
+                free_hours=free_hours,
+                occupancy=occupancy,
+            )
 
+        # Add this session's new time slot to occupancy to prevent overlaps
         _add_to_occupancy_map(occupancy, new_date, session_start, session_end)
+        
         proposed_updates.append(
             {
                 "session": session_row,
@@ -553,7 +602,10 @@ async def cascade_reschedule_sessions(
                 "new_date": new_date,
             }
         )
-        last_assigned_date = new_date
+        
+        # Update minimum next date for the following sessions
+        # This is the key to proper cascading - each session chains after the previous
+        min_next_date = new_date
 
     # Apply updates sequentially
     supabase = get_supabase_client()
@@ -603,3 +655,4 @@ async def cascade_reschedule_sessions(
         "sessions": updated_sessions,
         "include_weekends": include_weekends,
     }
+
