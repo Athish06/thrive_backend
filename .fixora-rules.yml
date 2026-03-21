@@ -1,0 +1,478 @@
+rules:
+- id: fixora-wrapper-make-gemini-api-request
+  pattern: "def _make_gemini_api_request(...):\n  ..."
+  message: 'Vulnerable function ''_make_gemini_api_request()'' wraps httpx.AsyncClient.
+    Vulnerability: Insecure API Request. User-controlled data is passed to the API
+    request without proper validation or sanitization.'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Insecure API Request
+    confidence: MEDIUM
+    wrapper_defined_in: ai_services.py
+    wraps:
+    - httpx.AsyncClient
+    modules_used:
+    - httpx
+- id: fixora-wrapper-extract-text-with-ocr
+  pattern: "def extract_text_with_ocr(...):\n  ..."
+  message: 'Vulnerable function ''extract_text_with_ocr()'' wraps json.loads. Vulnerability:
+    Insecure File Handling. User-controlled file data is passed to the json.loads
+    function without proper validation or sanitization.'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Insecure File Handling
+    confidence: MEDIUM
+    wrapper_defined_in: ai_services.py
+    wraps:
+    - json.loads
+    modules_used:
+    - json
+- id: fixora-wrapper-create-supabase-client-instance
+  pattern: "def _create_supabase_client_instance(...):\n  ..."
+  message: 'Vulnerable function ''_create_supabase_client_instance()'' wraps create_client.
+    Vulnerability: Insecure Database Connection. User-controlled data (SUPABASE_URL
+    and SUPABASE_SERVICE_ROLE_KEY) is used to create a Supabase client instance without
+    proper validation or sanitization.'
+  severity: ERROR
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Insecure Database Connection
+    confidence: HIGH
+    wrapper_defined_in: db.py
+    wraps:
+    - create_client
+    modules_used:
+    - supabase
+- id: fixora-wrapper-create-tables-with-rls
+  pattern: "def create_tables_with_rls(...):\n  ..."
+  message: 'Vulnerable function ''create_tables_with_rls()'' wraps cur.execute. Vulnerability:
+    SQL Injection. User-controlled data is passed to the cur.execute function without
+    proper validation or sanitization, potentially leading to SQL injection attacks.'
+  severity: ERROR
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: HIGH
+    wrapper_defined_in: supabase_setup.py
+    wraps:
+    - cur.execute
+    modules_used:
+    - db
+    cwe: &id001
+    - CWE-89
+    owasp: &id002
+    - A03:2021
+- id: fixora-wrapper-enroll-student-route
+  pattern: "def enroll_student_route(...):\n  ..."
+  message: 'Vulnerable function ''enroll_student_route()'' wraps os.path.join, os.path.exists,
+    os.remove. Vulnerability: OS Command Injection. User-controlled file path passed
+    to os.path.join and os.remove without sanitization'
+  severity: ERROR
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: OS Command Injection
+    confidence: HIGH
+    wrapper_defined_in: app.py
+    wraps:
+    - os.path.join
+    - os.path.exists
+    - os.remove
+    modules_used:
+    - os
+- id: fixora-wrapper-save-ai-preferences
+  pattern: "def save_ai_preferences(...):\n  ..."
+  message: 'Vulnerable function ''save_ai_preferences()'' wraps supabase.table. Vulnerability:
+    SQL Injection. User-controlled data is directly used in the SQL query without
+    proper sanitization.'
+  severity: ERROR
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: HIGH
+    wrapper_defined_in: app.py
+    wraps:
+    - supabase.table
+    modules_used:
+    - supabase
+    cwe: *id001
+    owasp: *id002
+- id: fixora-wrapper-get-ai-preferences
+  pattern: "def get_ai_preferences(...):\n  ..."
+  message: 'Vulnerable function ''get_ai_preferences()'' wraps supabase.table. Vulnerability:
+    SQL Injection. User-controlled data is directly used in the SQL query without
+    proper sanitization.'
+  severity: ERROR
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: HIGH
+    wrapper_defined_in: app.py
+    wraps:
+    - supabase.table
+    modules_used:
+    - supabase
+    cwe: *id001
+    owasp: *id002
+- id: fixora-wrapper-get-session-notes-by-child
+  pattern: "def get_session_notes_by_child(...):\n  ..."
+  message: 'Vulnerable function ''get_session_notes_by_child()'' wraps supabase.table.
+    Vulnerability: SQL Injection. User-controlled data is directly used in the SQL
+    query without proper sanitization.'
+  severity: ERROR
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: HIGH
+    wrapper_defined_in: app.py
+    wraps:
+    - supabase.table
+    modules_used:
+    - supabase
+    cwe: *id001
+    owasp: *id002
+- id: fixora-wrapper-get-user-by-email
+  pattern: "def get_user_by_email(...):\n  ..."
+  message: 'Vulnerable function ''get_user_by_email()'' wraps client.table. Vulnerability:
+    SQL Injection. User-controlled email passed directly to Supabase query without
+    sanitization'
+  severity: ERROR
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: HIGH
+    wrapper_defined_in: auth.py
+    wraps:
+    - client.table
+    modules_used:
+    - db
+    cwe: *id001
+    owasp: *id002
+- id: fixora-wrapper-get-user-by-id
+  pattern: "def get_user_by_id(...):\n  ..."
+  message: 'Vulnerable function ''get_user_by_id()'' wraps client.table. Vulnerability:
+    SQL Injection. User-controlled ID passed directly to Supabase query without sanitization'
+  severity: ERROR
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: HIGH
+    wrapper_defined_in: auth.py
+    wraps:
+    - client.table
+    modules_used:
+    - db
+    cwe: *id001
+    owasp: *id002
+- id: fixora-wrapper-update-last-login
+  pattern: "def update_last_login(...):\n  ..."
+  message: 'Vulnerable function ''update_last_login()'' wraps client.table. Vulnerability:
+    SQL Injection. User-controlled ID passed directly to Supabase query without sanitization'
+  severity: ERROR
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: HIGH
+    wrapper_defined_in: auth.py
+    wraps:
+    - client.table
+    modules_used:
+    - db
+    cwe: *id001
+    owasp: *id002
+- id: fixora-wrapper-upload-file-to-supabase
+  pattern: "def upload_file_to_supabase(...):\n  ..."
+  message: 'Vulnerable function ''upload_file_to_supabase()'' wraps os.path.splitext,
+    mimetypes.guess_type, get_supabase_client, HTTPException, datetime.now, uuid4,
+    supabase.storage.from_, tempfile.NamedTemporaryFile, temp_file.write, os.path.exists,
+    extract_text_from_file, os.remove. Vulnerability: Arbitrary File Upload. User-controlled
+    file upload without proper validation or sanitization'
+  severity: ERROR
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Arbitrary File Upload
+    confidence: HIGH
+    wrapper_defined_in: storage/supabase_storage.py
+    wraps:
+    - os.path.splitext
+    - mimetypes.guess_type
+    - get_supabase_client
+    - HTTPException
+    - datetime.now
+    - uuid4
+    - supabase.storage.from_
+    - tempfile.NamedTemporaryFile
+    - temp_file.write
+    - os.path.exists
+    - extract_text_from_file
+    - os.remove
+    modules_used:
+    - os
+    - tempfile
+    - fastapi
+    - datetime
+    - uuid
+    - ai_services
+    - db
+    - mimetypes
+- id: fixora-wrapper-get-file-signed-url
+  pattern: "def get_file_signed_url(...):\n  ..."
+  message: 'Vulnerable function ''get_file_signed_url()'' wraps get_supabase_client,
+    HTTPException, supabase.storage.from_. Vulnerability: Insecure Direct Object Reference
+    (IDOR). Potential for unauthorized access to files via signed URLs'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Insecure Direct Object Reference (IDOR)
+    confidence: MEDIUM
+    wrapper_defined_in: storage/supabase_storage.py
+    wraps:
+    - get_supabase_client
+    - HTTPException
+    - supabase.storage.from_
+    modules_used:
+    - fastapi
+    - db
+- id: fixora-wrapper-delete-file-from-supabase
+  pattern: "def delete_file_from_supabase(...):\n  ..."
+  message: 'Vulnerable function ''delete_file_from_supabase()'' wraps get_supabase_client,
+    HTTPException, supabase.storage.from_. Vulnerability: Insecure Direct Object Reference
+    (IDOR). Potential for unauthorized deletion of files'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Insecure Direct Object Reference (IDOR)
+    confidence: MEDIUM
+    wrapper_defined_in: storage/supabase_storage.py
+    wraps:
+    - get_supabase_client
+    - HTTPException
+    - supabase.storage.from_
+    modules_used:
+    - fastapi
+    - db
+- id: fixora-wrapper-search-profiles-by-name
+  pattern: "def search_profiles_by_name(...):\n  ..."
+  message: 'Vulnerable function ''search_profiles_by_name()'' wraps client.table.
+    Vulnerability: SQL Injection. User-controlled search term is used in a query,
+    but Supabase''s parameterized queries are used which reduces the risk'
+  severity: INFO
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: LOW
+    wrapper_defined_in: users/profiles.py
+    wraps:
+    - client.table
+    modules_used:
+    - db
+    cwe: *id001
+    owasp: *id002
+- id: fixora-wrapper-assign-ai-activity-to-child
+  pattern: "def assign_ai_activity_to_child(...):\n  ..."
+  message: 'Vulnerable function ''assign_ai_activity_to_child()'' wraps supabase.table.
+    Vulnerability: SQL Injection. User-controlled data is passed to the database query
+    without proper sanitization, but the query is parameterized.'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: MEDIUM
+    wrapper_defined_in: sessions/sessions.py
+    wraps:
+    - supabase.table
+    modules_used:
+    - db
+    cwe: *id001
+    owasp: *id002
+- id: fixora-wrapper-update-session-status
+  pattern: "def update_session_status(...):\n  ..."
+  message: 'Vulnerable function ''update_session_status()'' wraps supabase.table.
+    Vulnerability: SQL Injection. User-controlled data is passed to the database query
+    without proper sanitization, but the query is parameterized.'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: MEDIUM
+    wrapper_defined_in: sessions/session_status.py
+    wraps:
+    - supabase.table
+    modules_used:
+    - db
+    cwe: *id001
+    owasp: *id002
+- id: fixora-wrapper-complete-session
+  pattern: "def complete_session(...):\n  ..."
+  message: 'Vulnerable function ''complete_session()'' wraps supabase.table. Vulnerability:
+    SQL Injection. User-controlled data is passed to the database query without proper
+    sanitization, but the query is parameterized.'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: MEDIUM
+    wrapper_defined_in: sessions/session_status.py
+    wraps:
+    - supabase.table
+    modules_used:
+    - db
+    cwe: *id001
+    owasp: *id002
+- id: fixora-wrapper-update-assessment-details-for-child
+  pattern: "def _update_assessment_details_for_child(...):\n  ..."
+  message: 'Vulnerable function ''_update_assessment_details_for_child()'' wraps supabase.table.
+    Vulnerability: SQL Injection. User-controlled data is passed to the database query
+    without proper sanitization, but the query is parameterized.'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: MEDIUM
+    wrapper_defined_in: sessions/session_status.py
+    wraps:
+    - supabase.table
+    modules_used:
+    - db
+    cwe: *id001
+    owasp: *id002
+- id: fixora-wrapper-create-general-note
+  pattern: "def create_general_note(...):\n  ..."
+  message: 'Vulnerable function ''create_general_note()'' wraps client.table. Vulnerability:
+    SQL Injection. User-controlled data is passed to the database query without proper
+    sanitization, but the query is parameterized.'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: MEDIUM
+    wrapper_defined_in: notes/general_notes.py
+    wraps:
+    - client.table
+    modules_used:
+    - db
+    cwe: *id001
+    owasp: *id002
+- id: fixora-wrapper-get-notes-by-date
+  pattern: "def get_notes_by_date(...):\n  ..."
+  message: 'Vulnerable function ''get_notes_by_date()'' wraps client.table. Vulnerability:
+    SQL Injection. User-controlled data is passed to the database query without proper
+    sanitization, but the query is parameterized.'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: MEDIUM
+    wrapper_defined_in: notes/general_notes.py
+    wraps:
+    - client.table
+    modules_used:
+    - db
+    cwe: *id001
+    owasp: *id002
