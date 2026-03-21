@@ -1,0 +1,668 @@
+rules:
+- id: fixora-wrapper-get-api-key
+  pattern: "def _get_api_key(...):\n  ..."
+  message: 'Vulnerable function ''_get_api_key()'' wraps os.getenv. Vulnerability:
+    IDOR / Broken Access Control. No authentication checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: ai_services.py
+    wraps:
+    - os.getenv
+    modules_used:
+    - os
+- id: fixora-wrapper-determine-mime-type
+  pattern: "def _determine_mime_type(...):\n  ..."
+  message: 'Vulnerable function ''_determine_mime_type()'' wraps os.path.splitext.
+    Vulnerability: IDOR / Broken Access Control. No authentication checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: ai_services.py
+    wraps:
+    - os.path.splitext
+    modules_used:
+    - os
+- id: fixora-wrapper-encode-file-to-base64
+  pattern: "def _encode_file_to_base64(...):\n  ..."
+  message: 'Vulnerable function ''_encode_file_to_base64()'' wraps open, base64.b64encode.
+    Vulnerability: IDOR / Broken Access Control. No authentication checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: ai_services.py
+    wraps:
+    - open
+    - base64.b64encode
+    modules_used:
+    - base64
+    - builtins
+    - fastapi
+- id: fixora-wrapper-extract-dates-from-text
+  pattern: "def _extract_dates_from_text(...):\n  ..."
+  message: 'Vulnerable function ''_extract_dates_from_text()'' wraps re.search, match.group,
+    match.groups. Vulnerability: IDOR / Broken Access Control. No authentication checks
+    are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: ai_services.py
+    wraps:
+    - re.search
+    - match.group
+    - match.groups
+    modules_used:
+    - re
+- id: fixora-wrapper-extract-names-from-text
+  pattern: "def _extract_names_from_text(...):\n  ..."
+  message: 'Vulnerable function ''_extract_names_from_text()'' wraps re.search, match.group.
+    Vulnerability: IDOR / Broken Access Control. No authentication checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: ai_services.py
+    wraps:
+    - re.search
+    - match.group
+    modules_used:
+    - re
+- id: fixora-wrapper-make-gemini-api-request
+  pattern: "def _make_gemini_api_request(...):\n  ..."
+  message: 'Vulnerable function ''_make_gemini_api_request()'' wraps httpx.AsyncClient,
+    client.post, client.get. Vulnerability: IDOR / Broken Access Control. No authentication
+    checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: ai_services.py
+    wraps:
+    - httpx.AsyncClient
+    - client.post
+    - client.get
+    modules_used:
+    - fastapi
+    - httpx
+- id: fixora-wrapper-validate-file-type
+  pattern: "def _validate_file_type(...):\n  ..."
+  message: 'Vulnerable function ''_validate_file_type()'' wraps os.path.splitext.
+    Vulnerability: IDOR / Broken Access Control. No authentication checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: ai_services.py
+    wraps:
+    - os.path.splitext
+    modules_used:
+    - os
+- id: fixora-wrapper-get-file-info
+  pattern: "def get_file_info(...):\n  ..."
+  message: 'Vulnerable function ''get_file_info()'' wraps os.stat, os.path.splitext,
+    os.path.basename. Vulnerability: IDOR / Broken Access Control. No authentication
+    checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: ai_services.py
+    wraps:
+    - os.stat
+    - os.path.splitext
+    - os.path.basename
+    modules_used:
+    - os
+- id: fixora-wrapper-extract-text-with-ocr
+  pattern: "def extract_text_with_ocr(...):\n  ..."
+  message: 'Vulnerable function ''extract_text_with_ocr()'' wraps HTTPException, json.loads.
+    Vulnerability: IDOR / Broken Access Control. No authentication checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: ai_services.py
+    wraps:
+    - HTTPException
+    - json.loads
+    modules_used:
+    - fastapi
+    - json
+- id: fixora-wrapper-validate-supabase-config
+  pattern: "def _validate_supabase_config(...):\n  ..."
+  message: 'Vulnerable function ''_validate_supabase_config()'' wraps os.getenv. Vulnerability:
+    IDOR / Broken Access Control. No authentication checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: db.py
+    wraps:
+    - os.getenv
+    modules_used:
+    - os
+- id: fixora-wrapper-get-client-status
+  pattern: "def get_client_status(...):\n  ..."
+  message: 'Vulnerable function ''get_client_status()'' wraps datetime.utcnow. Vulnerability:
+    IDOR / Broken Access Control. No authentication checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: db.py
+    wraps:
+    - datetime.utcnow
+    modules_used:
+    - datetime
+- id: fixora-wrapper-execute-safe-query
+  pattern: "def execute_safe_query(...):\n  ..."
+  message: 'Vulnerable function ''execute_safe_query()'' wraps datetime.utcnow. Vulnerability:
+    IDOR / Broken Access Control. No authentication checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: db.py
+    wraps:
+    - datetime.utcnow
+    modules_used:
+    - datetime
+- id: fixora-wrapper-get-table-info
+  pattern: "def get_table_info(...):\n  ..."
+  message: 'Vulnerable function ''get_table_info()'' wraps datetime.utcnow. Vulnerability:
+    IDOR / Broken Access Control. No authentication checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: db.py
+    wraps:
+    - datetime.utcnow
+    modules_used:
+    - datetime
+- id: fixora-wrapper-perform-health-check
+  pattern: "def perform_health_check(...):\n  ..."
+  message: 'Vulnerable function ''perform_health_check()'' wraps datetime.utcnow.
+    Vulnerability: IDOR / Broken Access Control. No authentication checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: db.py
+    wraps:
+    - datetime.utcnow
+    modules_used:
+    - datetime
+- id: fixora-wrapper-test-database-operations
+  pattern: "def test_database_operations(...):\n  ..."
+  message: 'Vulnerable function ''test_database_operations()'' wraps datetime.utcnow.
+    Vulnerability: IDOR / Broken Access Control. No authentication checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: db.py
+    wraps:
+    - datetime.utcnow
+    modules_used:
+    - datetime
+- id: fixora-wrapper-create-standardized-response
+  pattern: "def create_standardized_response(...):\n  ..."
+  message: 'Vulnerable function ''create_standardized_response()'' wraps datetime.utcnow.
+    Vulnerability: IDOR / Broken Access Control. No authentication checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: db.py
+    wraps:
+    - datetime.utcnow
+    modules_used:
+    - datetime
+- id: fixora-wrapper-setup-supabase
+  pattern: "def setup_supabase(...):\n  ..."
+  message: 'Vulnerable function ''setup_supabase()'' wraps get_db_connection, conn.close.
+    Vulnerability: IDOR / Broken Access Control. No authentication checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: supabase_setup.py
+    wraps:
+    - get_db_connection
+    - conn.close
+    modules_used:
+    - db
+- id: fixora-wrapper-test-database-connection
+  pattern: "def test_database_connection(...):\n  ..."
+  message: 'Vulnerable function ''test_database_connection()'' wraps test_connection,
+    HTTPException. Vulnerability: IDOR / Broken Access Control. No authentication
+    checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: app.py
+    wraps:
+    - test_connection
+    - HTTPException
+    modules_used:
+    - db
+    - fastapi
+- id: fixora-wrapper-test-supabase-client
+  pattern: "def test_supabase_client(...):\n  ..."
+  message: 'Vulnerable function ''test_supabase_client()'' wraps init_supabase_client,
+    test_supabase_client. Vulnerability: IDOR / Broken Access Control. No authentication
+    checks are performed'
+  severity: WARNING
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: MEDIUM
+    wrapper_defined_in: app.py
+    wraps:
+    - init_supabase_client
+    - test_supabase_client
+    modules_used:
+    - db
+- id: fixora-wrapper-register-user
+  pattern: "def register_user(...):\n  ..."
+  message: 'Vulnerable function ''register_user()'' wraps create_user. Vulnerability:
+    IDOR / Broken Access Control. No authentication checks are performed before creating
+    a new user'
+  severity: ERROR
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: HIGH
+    wrapper_defined_in: app.py
+    wraps:
+    - create_user
+    modules_used:
+    - fastapi
+    - users
+- id: fixora-wrapper-startup-event
+  pattern: "def startup_event(...):\n  ..."
+  message: 'Vulnerable function ''startup_event()'' wraps start_smart_notification_system.
+    Vulnerability: IDOR / Broken Access Control. No authentication checks are performed
+    in this function, which could lead to unauthorized access to the smart notification
+    system.'
+  severity: ERROR
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: HIGH
+    wrapper_defined_in: app.py
+    wraps:
+    - start_smart_notification_system
+    modules_used:
+    - sessions
+- id: fixora-wrapper-shutdown-event
+  pattern: "def shutdown_event(...):\n  ..."
+  message: 'Vulnerable function ''shutdown_event()'' wraps stop_smart_notification_system.
+    Vulnerability: IDOR / Broken Access Control. No authentication checks are performed
+    in this function, which could lead to unauthorized access to the smart notification
+    system.'
+  severity: ERROR
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: HIGH
+    wrapper_defined_in: app.py
+    wraps:
+    - stop_smart_notification_system
+    modules_used:
+    - sessions
+- id: fixora-wrapper-normalize
+  pattern: "def normalize(...):\n  ..."
+  message: 'Vulnerable function ''normalize()'' wraps datetime.strptime. Vulnerability:
+    IDOR / Broken Access Control. No authentication checks are performed in this function,
+    but it does not seem to have any significant security implications.'
+  severity: INFO
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: LOW
+    wrapper_defined_in: app.py
+    wraps:
+    - datetime.strptime
+    modules_used:
+    - datetime
+- id: fixora-wrapper-create-credentials-exception
+  pattern: "def _create_credentials_exception(...):\n  ..."
+  message: 'Vulnerable function ''_create_credentials_exception()'' wraps HTTPException.
+    Vulnerability: IDOR / Broken Access Control. No authentication checks are performed
+    in this function, but it does not seem to have any significant security implications.'
+  severity: INFO
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: LOW
+    wrapper_defined_in: auth.py
+    wraps:
+    - HTTPException
+    modules_used:
+    - fastapi
+- id: fixora-wrapper-calculate-token-expiry
+  pattern: "def _calculate_token_expiry(...):\n  ..."
+  message: 'Vulnerable function ''_calculate_token_expiry()'' wraps datetime.utcnow,
+    timedelta. Vulnerability: IDOR / Broken Access Control. No authentication checks
+    are performed in this function, but it does not seem to have any significant security
+    implications.'
+  severity: INFO
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: LOW
+    wrapper_defined_in: auth.py
+    wraps:
+    - datetime.utcnow
+    - timedelta
+    modules_used:
+    - datetime
+- id: fixora-wrapper-verify-password
+  pattern: "def verify_password(...):\n  ..."
+  message: 'Vulnerable function ''verify_password()'' wraps bcrypt.checkpw. Vulnerability:
+    IDOR / Broken Access Control. No authentication checks are performed in this function,
+    but it does not seem to have any significant security implications.'
+  severity: INFO
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: LOW
+    wrapper_defined_in: auth.py
+    wraps:
+    - bcrypt.checkpw
+    modules_used:
+    - bcrypt
+- id: fixora-wrapper-hash-password
+  pattern: "def hash_password(...):\n  ..."
+  message: 'Vulnerable function ''hash_password()'' wraps bcrypt.hashpw, bcrypt.gensalt.
+    Vulnerability: IDOR / Broken Access Control. No authentication checks are performed
+    in this function, but it does not seem to have any significant security implications.'
+  severity: INFO
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: LOW
+    wrapper_defined_in: auth.py
+    wraps:
+    - bcrypt.hashpw
+    - bcrypt.gensalt
+    modules_used:
+    - bcrypt
+- id: fixora-wrapper-get-user-by-email
+  pattern: "def get_user_by_email(...):\n  ..."
+  message: 'Vulnerable function ''get_user_by_email()'' wraps get_supabase_client,
+    handle_supabase_error, format_supabase_response, client.table. Vulnerability:
+    IDOR / Broken Access Control. No authentication checks are performed in this function,
+    but it does not seem to have any significant security implications.'
+  severity: INFO
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: LOW
+    wrapper_defined_in: auth.py
+    wraps:
+    - get_supabase_client
+    - handle_supabase_error
+    - format_supabase_response
+    - client.table
+    modules_used:
+    - db
+- id: fixora-wrapper-get-user-profile-by-role
+  pattern: "def _get_user_profile_by_role(...):\n  ..."
+  message: 'Vulnerable function ''_get_user_profile_by_role()'' wraps get_therapist_profile,
+    get_parent_profile. Vulnerability: IDOR / Broken Access Control. No authentication
+    checks are performed in this function, but it does not seem to have any significant
+    security implications.'
+  severity: INFO
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: LOW
+    wrapper_defined_in: auth.py
+    wraps:
+    - get_therapist_profile
+    - get_parent_profile
+    modules_used:
+    - users
+- id: fixora-wrapper-get-all-therapist-profiles
+  pattern: "def get_all_therapist_profiles(...):\n  ..."
+  message: 'Vulnerable function ''get_all_therapist_profiles()'' wraps get_supabase_client,
+    handle_supabase_error, format_supabase_response, client.table. Vulnerability:
+    IDOR / Broken Access Control. No authentication checks are performed before fetching
+    all therapist profiles.'
+  severity: ERROR
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: HIGH
+    wrapper_defined_in: users/profiles.py
+    wraps:
+    - get_supabase_client
+    - handle_supabase_error
+    - format_supabase_response
+    - client.table
+    modules_used:
+    - db
+- id: fixora-wrapper-get-all-parent-profiles
+  pattern: "def get_all_parent_profiles(...):\n  ..."
+  message: 'Vulnerable function ''get_all_parent_profiles()'' wraps get_supabase_client,
+    handle_supabase_error, format_supabase_response, client.table. Vulnerability:
+    IDOR / Broken Access Control. No authentication checks are performed before fetching
+    all parent profiles.'
+  severity: ERROR
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: HIGH
+    wrapper_defined_in: users/profiles.py
+    wraps:
+    - get_supabase_client
+    - handle_supabase_error
+    - format_supabase_response
+    - client.table
+    modules_used:
+    - db
+- id: fixora-wrapper-search-profiles-by-name
+  pattern: "def search_profiles_by_name(...):\n  ..."
+  message: 'Vulnerable function ''search_profiles_by_name()'' wraps get_supabase_client,
+    handle_supabase_error, format_supabase_response, client.table. Vulnerability:
+    IDOR / Broken Access Control. No authentication checks are performed before searching
+    profiles by name.'
+  severity: ERROR
+  languages:
+  - python
+  metadata:
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: HIGH
+    wrapper_defined_in: users/profiles.py
+    wraps:
+    - get_supabase_client
+    - handle_supabase_error
+    - format_supabase_response
+    - client.table
+    modules_used:
+    - db
